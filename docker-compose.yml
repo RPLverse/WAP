@@ -1,0 +1,48 @@
+# Docker Compose configuration for the complete web application.
+# The public entrypoint is the frontend container on port 8080. It serves the
+# compiled Vue SPA and reverse-proxies /api to the backend container, avoiding
+# browser-facing localhost assumptions.
+
+services:
+  # Backend REST API (Node.js + Express), internal to the Docker network.
+  app:
+    build: ./backend
+    container_name: wap-costantini-backend
+    environment:
+      PORT: 3000
+      DATABASE_URL: postgres://wap:wap@db:5432/wap
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      # Optional comma-separated list for deployments where an external
+      # frontend calls the API directly. The normal Docker deployment uses
+      # same-origin /api proxying and does not require CORS.
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+      NODE_ENV: production
+    depends_on:
+      - db
+
+  # Frontend web server (Vue build + Nginx reverse proxy).
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE: ${VITE_API_BASE:-/api}
+    container_name: wap-costantini-frontend
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    depends_on:
+      - app
+
+  # PostgreSQL database service, internal to the Docker network.
+  db:
+    image: postgres:15
+    container_name: wap-costantini-db
+    environment:
+      POSTGRES_DB: wap
+      POSTGRES_USER: wap
+      POSTGRES_PASSWORD: wap
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./backend/db/001_init.sql:/docker-entrypoint-initdb.d/001_init.sql:ro
+
+volumes:
+  pgdata:
