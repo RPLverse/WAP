@@ -185,7 +185,7 @@ Implemented endpoints (see `routes/*` for payload details):
 
 The backend codebase is documented using **JSDoc** to describe service functions and business logic.
 Formal documentation is generated only for the backend, which exposes the public API, while frontend
-code is documented inline inside Vue components.
+code is documented inline inside Vue components. The docs/ directory is not committed to the repository.
 
 From the `backend/` directory, documentation can be generated with:
 ```bash

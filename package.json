@@ -1,0 +1,8 @@
+{
+  "scripts": {
+    "docs": "jsdoc backend/src frontend/src -r -d docs"
+  },
+  "devDependencies": {
+    "jsdoc": "^4.0.0"
+  }
+}
