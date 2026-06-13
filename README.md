@@ -23,7 +23,7 @@ The application is designed to run using Docker Compose.
 - **Persistence**: Sequelize ORM + PostgreSQL
 - **Frontend**: Vue 3 (Vite, Composition API)
 - **Authentication**: JWT (Bearer token) + bcrypt password hashing
-- **Deployment**: Docker Compose (frontend + backend + PostgreSQL)
+- **Deployment**: Docker Compose (Node/Express application + PostgreSQL)
 
 ---
 
@@ -159,7 +159,6 @@ Environment-specific configuration is provided via environment variables:
 - `PORT`
 - `DATABASE_URL`
 - `JWT_SECRET`
-- (optional) `CORS_ORIGINS`
 
 This makes the system portable and easy to run in different environments (local machine, Docker, ...).
 
@@ -195,31 +194,56 @@ npm run docs
 
 ## 12. Deployment and Docker Usage
 
-The project is containerized using Docker Compose and runs three services:
+The project is containerized using Docker Compose and runs two services:
 
-- `frontend` (Nginx serving the compiled Vue SPA and reverse-proxying `/api`)
-- `app` (Node.js/Express backend, internal to the Docker network)
-- `db` (PostgreSQL, internal to the Docker network)
+- `web`: a single Node.js/Express container that serves both:
+  - the REST API under `/api`;
+  - the compiled Vue static files;
+- `db`: the PostgreSQL database.
 
-The browser entrypoint is the `frontend` service. The Vue application is built with Vite at image build time and then served by Nginx. API calls use the relative `/api` path; Nginx forwards those requests to the backend container over Docker's internal network. This avoids hard-coded `localhost` URLs in the browser and lets the application run behind any host name or IP address.
+The Vue frontend is compiled with Vite during the Docker image build. The generated HTML, CSS and JavaScript files are copied into the final application image and served directly by Express.
 
-From the repository root:
+The browser accesses both the frontend and the API through the same origin. For example:
+
+```text
+http://localhost:8080/
+http://localhost:8080/api/fields
+```
+
+Because frontend and backend use the same origin:
+
+- no CORS configuration is required;
+- no separate Nginx container is required;
+- no backend URL is hard-coded to `localhost`;
+- the frontend calls the backend using relative paths such as `/api/fields`.
+
+The same image can therefore be deployed using a local address, an IP address or a domain name without changing the frontend source code.
+
+From the repository root, start the application with:
 
 ```bash
 docker compose up --build
 ```
 
-Alternatively, to run the services in background:
+Alternatively, run it in the background:
 
 ```bash
 docker compose up -d --build
 ```
 
-Once the containers are up and running, the application can be accessed through a web browser at:
+Once the containers are running, open:
 
-- `http://localhost:8080` by default, or `http://<server-host>:8080` from another machine if the host firewall allows it.
+```text
+http://localhost:8080
+```
 
-The backend API is reached through the same origin under `/api` (for example `/api/fields`). The backend and database containers are not exposed directly to the browser in the default deployment. The public port can be changed without modifying source code:
+From another computer, if the server firewall allows access:
+
+```text
+http://<server-host>:8080
+```
+
+The public port can be changed through the `WEB_PORT` environment variable:
 
 ```bash
 WEB_PORT=80 docker compose up --build
@@ -228,38 +252,35 @@ WEB_PORT=80 docker compose up --build
 Useful commands:
 
 ```bash
-docker compose ps        # Show the status of services defined in docker-compose.yml
-docker compose logs -f   # Stream logs from all services in real time
-docker compose down      # Stop and remove containers, preserving volumes and data
-docker compose down -v   # Stop containers and remove volumes (database is reset)
-docker ps                # List currently running Docker containers
+docker compose ps        # Show the two services and their status
+docker compose logs -f   # Stream logs from both services
+docker compose down      # Stop and remove containers, preserving data
+docker compose down -v   # Stop containers and remove the database volume
 ```
 
-### 12.1 Database Persistence (Volumes)
+### 12.1 Database Persistence
 
-PostgreSQL data is persisted using a **Docker volume** (mounted under `/var/lib/postgresql/data`).
+PostgreSQL data is persisted using a Docker volume mounted under:
 
-Therefore:
+```text
+/var/lib/postgresql/data
+```
 
-- Stopping/restarting containers does **not** reset the database
-- Users, tournaments and bookings remain available across restarts
-- The schema initialization runs only when the database directory is empty (first startup)
+Stopping and restarting the containers does not remove users, tournaments, bookings or other stored data:
 
-In practice:
+```bash
+docker compose down
+docker compose up --build
+```
 
-- **Keeps data**:
-  ```bash
-  docker compose down
-  docker compose up --build
-  ```
+To remove the database volume and recreate the database from scratch:
 
-- **Resets data** (removes volumes):
-  ```bash
-  docker compose down -v
-  docker compose up --build
-  ```
+```bash
+docker compose down -v
+docker compose up --build
+```
 
-This separates the *application lifecycle* from the *data lifecycle*.
+This separates the application lifecycle from the data lifecycle.
 
 ---
 

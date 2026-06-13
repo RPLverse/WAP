@@ -10,7 +10,8 @@
  */
 
 import express from "express";
-import cors from "cors";
+import path from "path";
+import { fileURLToPath } from "url";
 
 import { config } from "./config.js";
 import { initDatabaseConnection } from "./sequelize.js";
@@ -38,27 +39,12 @@ const app = express();
 // are dynamic and should return a real JSON body on every request, not 304.
 app.set("etag", false);
 
-const corsOptions = {
-  origin(origin, callback) {
-    // Requests without an Origin header (for example curl, health checks,
-    // or same-origin calls through the reverse proxy) are allowed.
-    if (!origin) return callback(null, true);
-
-    // If CORS_ORIGINS is empty, do not emit CORS headers. This is suitable
-    // for production deployments where the frontend and API share one origin
-    // through the reverse proxy.
-    if (config.corsOrigins.length === 0) return callback(null, false);
-
-    return callback(null, config.corsOrigins.includes(origin));
-  },
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"]
-};
-
-// Handle CORS preflight (OPTIONS) requests and regular API responses using
-// the same environment-driven policy.
-app.options("*", cors(corsOptions));
-app.use(cors(corsOptions));
+// The frontend is built by Vite into the public directory during the Docker build.
+// Express serves those static files directly, so no separate Nginx/web-server
+// container is needed.
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const frontendDistPath = path.resolve(__dirname, "../public");
 
 // Enable JSON body parsing for incoming requests
 app.use(express.json());
@@ -85,8 +71,17 @@ app.use("/api/auth", authRouter);
 app.use("/api/fields", fieldsRouter);
 app.use("/api/tournaments", tournamentsRouter);
 
-// Catch-all handler for undefined routes
-app.use((_req, _res, next) => next(new NotFoundError("Route not found")));
+// Undefined API routes return JSON errors.
+app.use("/api", (_req, _res, next) => next(new NotFoundError("Route not found")));
+
+// Serve the compiled Vue application as static files.
+app.use(express.static(frontendDistPath));
+
+// Vue Router uses history mode, so browser refreshes on frontend routes
+// must return index.html and let the client-side router handle the page.
+app.get("*", (_req, res) => {
+  res.sendFile(path.join(frontendDistPath, "index.html"));
+});
 
 // Centralized error handling middleware
 app.use(errorHandler);

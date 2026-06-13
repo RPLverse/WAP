@@ -26,9 +26,5 @@ function requireEnv(name, fallback) {
 export const config = {
   port: Number(process.env.PORT ?? 3000),
   databaseUrl: requireEnv("DATABASE_URL"),
-  jwtSecret: requireEnv("JWT_SECRET", "dev-secret-change-me"),
-  corsOrigins: (process.env.CORS_ORIGINS ?? "")
-    .split(",")
-    .map(s => s.trim())
-    .filter(Boolean)
+  jwtSecret: requireEnv("JWT_SECRET", "dev-secret-change-me")
 };
